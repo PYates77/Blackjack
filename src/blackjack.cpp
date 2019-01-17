@@ -4,6 +4,12 @@
 #include <algorithm>
 #include <iostream>
 
+
+// TODO LIST
+// Game does not check for player or dealer blackjack
+// Game does not print the value of the player's hand after they double or blackjack
+// Player cannot split
+
 enum BlackjackCards 
 {
     TWO,
