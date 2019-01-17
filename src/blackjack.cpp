@@ -3,12 +3,16 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 
 // TODO LIST
 // Game does not check for player or dealer blackjack
 // Game does not print the value of the player's hand after they double or blackjack
 // Player cannot split
+
+static bool dramatic_delay_enabled = true;
 
 enum BlackjackCards 
 {
@@ -297,7 +301,6 @@ public:
 
 };
 
-//TODO Make a dealer player that inherits player's classes, but overrides the get_player_action to follow the dealer rulest
 class BlackjackDealer : public BlackjackPlayer 
 {
 private:
@@ -326,6 +329,13 @@ public:
         return hand.cards[0];
     }
 };
+
+void dramatic_delay()
+{
+    if(dramatic_delay_enabled){
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+}
 
 
 class BlackjackGame 
@@ -364,6 +374,8 @@ public:
         dealer.deal(next_card(), next_card());
 
         std::cout << "Dealer showing " << card_strings[dealer.showing()] << std::endl;
+
+        dramatic_delay(); 
         for(i=0; i<players.size(); ++i){
             enum BlackjackPlayerActions action = NO_ACTION;
             while(action != STAND){
@@ -371,8 +383,12 @@ public:
                 action = players[i].get_player_action();
                 if(action == HIT){
                     players[i].hit(next_card());
+                    BlackjackHand player_hand = players[i].get_hand();
+                    std::cout << "Player Hits: " << player_hand << std::endl;
                 } else if(action == DOUBLE){
                     players[i].double_down(next_card());
+                    BlackjackHand player_hand = players[i].get_hand();
+                    std::cout << "Player Doubles Down: " << player_hand << std::endl;
                     break;
                 } else if(action != STAND){
                     std::cout << "Unsupported action (sorry)" << std::endl;
@@ -384,6 +400,7 @@ public:
                 //TODO surrender, split, (how should we handle paying out for surrender?)
                 //TODO check for blackjack
             }
+            dramatic_delay();
         }
 
         enum BlackjackPlayerActions action = NO_ACTION;
@@ -391,6 +408,8 @@ public:
             action = dealer.get_player_action();
             if(action == HIT){
                 dealer.hit(next_card());
+                BlackjackHand dealer_hand = dealer.get_hand();
+                std::cout << "Dealer Hits: " << dealer_hand << std::endl;
             } else if (action == NO_ACTION){
                 std::cout << "ERROR: Dealer Had a Stroke" << std::endl;
                 break;
@@ -399,6 +418,7 @@ public:
                 std::cout << "Dealer Busted" << std::endl;
                 break;
             }
+            dramatic_delay();
         }
         BlackjackHand dealer_hand = dealer.get_hand();
         std::cout << "Dealer's hand: " << dealer_hand << std::endl;
@@ -419,6 +439,7 @@ public:
                 std::cout << "Player " << i+1 << " Loses\n" << std::endl;
             }
             players[i].clear();
+            dramatic_delay();
         }
 
         dealer.clear();
