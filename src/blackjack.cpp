@@ -2,6 +2,7 @@
 #include <set>
 #include <vector>
 #include <algorithm>
+#include <iostream>
 
 enum BlackjackCards 
 {
@@ -17,7 +18,34 @@ enum BlackjackCards
     JACK,
     QUEEN,
     KING,
-    ACE
+    ACE,
+    _NUM_BLACKJACK_CARDS_
+};
+
+static std::string card_strings[] = {
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Jack",
+    "Queen",
+    "King",
+    "Ace"
+};
+
+enum BlackjackPlayerActions
+{
+    NO_ACTION,
+    STAND,
+    HIT,
+    DOUBLE,
+    SPLIT,
+    SURRENDER
 };
 
 struct BlackjackRules
@@ -59,10 +87,10 @@ struct BlackjackHandInfo
 class BlackjackHand
 {
 private:
-    std::vector<enum BlackjackCards> cards;
     unsigned int bet;
 
 public:
+    std::vector<enum BlackjackCards> cards;
     void place_bet(unsigned int new_bet)
     {
         bet = new_bet;
@@ -128,6 +156,20 @@ public:
         return info;
     }
 };
+std::ostream& operator<<(std::ostream& str, BlackjackHand& v) {
+    struct BlackjackHandInfo info = v.info();
+    if(info.pair){
+        str << "pair of " << card_strings[v.cards[0]] << "s (" << info.value << ")";
+    } else {
+        if(info.soft){
+            for(enum BlackjackCards card : v.cards){
+                  str << card_strings[card] << " ";
+            }
+            str << " (" << info.value << ")";
+        }
+    }
+    return str;
+}
 
 class BlackjackPlayer 
 {
@@ -173,12 +215,43 @@ public:
         return (hand.info().value > 21);
     }
 
+    virtual enum BlackjackPlayerActions get_player_action()
+    {
+        enum BlackjackPlayerActions action = NO_ACTION;
+        std::cout << "Hand is: " << hand << std::endl << "Choose an Action ([H]it, [S]tand, [D]ouble)" << std::endl; 
+        std::string player_action;
+        std::cin >> player_action;
+        int valid_action = 0;
+        while(valid_action == 0){
+            valid_action = 1;
+            switch(player_action[0]){
+                case('H'):
+                    action = HIT;
+                    break;
+                case('S'):
+                    action = STAND;
+                    break;
+                case('D'):
+                    action = DOUBLE;
+                    break;
+                default:
+                    std::cout << "Invalid Player Action" << std::endl;
+                    valid_action = 0;
+            }
+        }
+        return action;
+    }
+
 };
+
+//TODO Make a dealer player that inherits player's classes, but overrides the get_player_action to follow the dealer rulest
+
 
 class BlackjackGame 
 {
 private:
     std::vector<BlackjackPlayer> players;
+    BlackjackPlayer dealer;
     struct BlackjackRules ruleset;
 public:
     BlackjackGame()
@@ -192,4 +265,20 @@ public:
             players.push_back(BlackjackPlayer());
         }
     }
+    enum BlackjackCards next_card()
+    {
+        if(ruleset.continuous_shuffle){ //TODO continuous shuffle doesn't imply complete randomness
+            return static_cast<enum BlackjackCards>(rand()%_NUM_BLACKJACK_CARDS_);
+        }
+    }
+
+    void deal_hand()
+    {
+        //TODO: does it matter in any statistical way what order you deal the cards out in? even if you simulate a real deck? I think it doesn't
+        for(BlackjackPlayer player : players){
+            player.deal(next_card(), next_card()); 
+        }
+        dealer.deal(next_card(), next_card());
+    }
+    
 };
