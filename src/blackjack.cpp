@@ -201,6 +201,8 @@ protected:
     int bankroll;
     unsigned int starting_bet;
     BlackjackHand hand; 
+    bool can_split;
+    bool can_double;
 
 public:
     BlackjackPlayer()
@@ -216,12 +218,17 @@ public:
     }
     void deal(BlackjackCards card1, BlackjackCards card2)
     {
+        can_split = false;
+        can_double = true;
         //std::cout << "[DEBUG] dealing " << card_strings[card1] << " " << card_strings[card2] << std::endl;
         hand.add_card(card1);
         hand.add_card(card2);
         bankroll -= starting_bet;
         hand.place_bet(starting_bet);
         //std::cout << "[DEBUG] hand: " << hand << std::endl; 
+        if (card1 == card2) {
+            can_split = true;
+        }
     }
     void set_bet(unsigned int bet_amount)
     {
@@ -234,6 +241,8 @@ public:
 
     void hit(enum BlackjackCards card)
     {
+        can_double = false;
+        can_split = false;
         hand.add_card(card);
     }
     void double_down(enum BlackjackCards card)
@@ -242,7 +251,10 @@ public:
         hand.place_bet(2*starting_bet);
         bankroll -= starting_bet;
     }
-    //TODO split
+    void split()
+    {
+        std::cout << "Sorry I haven't implemetned splitting yet" << std::endl;
+    }
 
     void pay()
     {
@@ -264,7 +276,15 @@ public:
     virtual enum BlackjackPlayerActions get_player_action()
     {
         enum BlackjackPlayerActions action = NO_ACTION;
-        std::cout << "Hand is: " << hand << std::endl << "Choose an Action ([H]it, [S]tand, [D]ouble)" << std::endl; 
+        std::cout << "Hand is: " << hand << std::endl << "Choose an Action ([H]it, ";
+        if (can_split) {
+            std::cout << "S[p]lit, ";
+        }
+        if (can_double) {
+            std::cout << "[D]ouble, "; 
+        }
+        std::cout << "[S]tand)" << std::endl; 
+
         std::string player_action;
         while(action == NO_ACTION){
             std::cin >> player_action;
@@ -279,7 +299,19 @@ public:
                     break;
                 case('D'):
                 case('d'):
-                    action = DOUBLE;
+                    if (can_double) {
+                        action = DOUBLE;
+                    } else {
+                        std::cout << "Can't double right now" << std::endl;
+                    }
+                    break;
+                case ('P'):
+                case ('p'):
+                    if (can_split) {
+                        action = SPLIT;
+                    } else {
+                        std::cout << "Can't split right now" << std::endl;
+                    }
                     break;
                 default:
                     std::cout << "Invalid Player Action" << std::endl;
@@ -390,6 +422,9 @@ public:
                     BlackjackHand player_hand = players[i].get_hand();
                     std::cout << "Player Doubles Down: " << player_hand << std::endl;
                     break;
+                } else if (action == SPLIT){
+                    
+
                 } else if(action != STAND){
                     std::cout << "Unsupported action (sorry)" << std::endl;
                 }
