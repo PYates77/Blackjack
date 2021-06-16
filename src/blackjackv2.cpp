@@ -6,24 +6,29 @@
 #include <chrono>
 #include <thread>
 
+/* TODO:
+ *  Overall you should probably redo this whole thing with better design practices, it's a huge mess
+ *  Insurance
+ *  Blackjack payout
+ */
+
 static bool dramatic_delay_enabled = true;
 
 enum BlackjackCardValue 
 {
-	TWO,
-	THREE,
-	FOUR,
-	FIVE,
-	SIX,
-	SEVEN,
-	EIGHT,
-	NINE,
-	TEN,
-	JACK,
-	QUEEN,
-	KING,
-	ACE,
-	_NUM_BLACKJACK_CARDS_
+    TWO, THREE,
+    FOUR,
+    FIVE,
+    SIX,
+    SEVEN,
+    EIGHT,
+    NINE,
+    TEN,
+    JACK,
+    QUEEN,
+    KING,
+    ACE,
+    _NUM_BLACKJACK_CARDS_
 };
 
 static std::string card_strings[] = {
@@ -70,18 +75,18 @@ enum BlackjackPlayerActions
 
 enum BlackjackSuit
 {
-	CLUBS,
-	HEARTS,
-	SPADES,
-	DIAMONDS,
-	_NUM_BLACKJACK_SUITS_
+    CLUBS,
+    HEARTS,
+    SPADES,
+    DIAMONDS,
+    _NUM_BLACKJACK_SUITS_
 };
 
 static std::string card_suits[] = {
-	"♣",
-	"♥",
-	"♠",
-	"♦"
+    "♣",
+    "♥",
+    "♠",
+    "♦"
 };
 
 struct BlackjackRules
@@ -97,6 +102,7 @@ struct BlackjackRules
     bool surrender;
     float blackjack_payout; // 3 to 2 would be 1.5, 6 to 5 would be 1.2
     bool continuous_shuffle;
+    int shuffle_threshold; // number of cards left in the deck which trigger a shuffle
 };
 
 static const struct BlackjackRules default_ruleset = {
@@ -110,7 +116,8 @@ static const struct BlackjackRules default_ruleset = {
     .dealer_checks_blackjack = true,
     .surrender = false,
     .blackjack_payout = 1.5,
-    .continuous_shuffle = false
+    .continuous_shuffle = false,
+    .shuffle_threshold = 10,
 };
 
 
@@ -132,17 +139,17 @@ void dramatic_delay()
 
 class BlackjackCard
 {
-public:
-    enum BlackjackSuit suit;
-    enum BlackjackCardValue value;
-    BlackjackCard(enum BlackjackSuit s, enum BlackjackCardValue v) {
-        suit = s;
-        value = v;
-    }
+    public:
+        enum BlackjackSuit suit;
+        enum BlackjackCardValue value;
+        BlackjackCard(enum BlackjackSuit s, enum BlackjackCardValue v) {
+            suit = s;
+            value = v;
+        }
 
-    bool operator<(const BlackjackCard& r) {
-        return this->value < r.value;
-    }
+        bool operator<(const BlackjackCard& r) {
+            return this->value < r.value;
+        }
 
 
 };
@@ -152,9 +159,11 @@ class BlackjackDeck
     int num_decks;
     std::vector<BlackjackCard> deck;
 
-public:
+    public:
     /* reinits the deck with all cards and shuffles the cards */
-	void shuffle(){
+    void shuffle(){
+        std::cout << "shuffling..." << std::endl;
+        deck.clear();
         for (int i=0; i<num_decks; ++i) {
             for(int s=CLUBS; s<_NUM_BLACKJACK_SUITS_; ++s) {
                 for(int v=TWO; v<_NUM_BLACKJACK_CARDS_; ++v) {
@@ -176,99 +185,110 @@ public:
         shuffle();
     }
 
-	BlackjackCard& deal(){
-		// pop card off of the deck
-		// check remaining deck size here and various game rules
-		// to decide whether or not to shuffle 
+    BlackjackCard& deal(){
+        // pop card off of the deck
         BlackjackCard &c = deck.back();
         deck.pop_back();
         return c;
-	}
+    }
+
+    int cards_remaining() {
+        return deck.size();
+    }
 
 };
 
 class BlackjackHand
 {
-public:
-	unsigned int bet;
-	bool can_split;
-	bool can_double;
-    bool is_soft;
-	bool is_busted;
-	std::vector<BlackjackCard> cards;
+    public:
+        unsigned int bet;
+        bool blackjack;
+        bool can_split;
+        bool can_double;
+        bool is_soft;
+        bool is_busted;
+        std::vector<BlackjackCard> cards;
 
-public:
-	void deal(BlackjackCard &card1, BlackjackCard &card2, unsigned int initial_bet)
-	{
-		bet = initial_bet;
-		cards.push_back(card1);
-		cards.push_back(card2);
-		can_double = true;
-		if (this->info().pair) {
-			can_split = true;
-		}
-	}	
-
-	void hit(BlackjackCard &card)
-	{
-		cards.push_back(card);
-		if (this->info().value > 21) {
-			is_busted = true;
-		}
-	}
-
-	void double_down(BlackjackCard &card)
-	{
-		cards.push_back(card);
-		bet *= 2;
-	}
-
-	void clear()
-	{
-		cards.clear();
-		bet = 0;
-		can_split = false;
-		can_double = false;
-		is_soft = false;
-		is_busted = false;
-	}
-
-	struct BlackjackHandInfo info()
-	{
-        std::vector<BlackjackCard> sorted_hand = cards;
-        std::sort(sorted_hand.begin(), sorted_hand.end()); //need to get aces at the end for correct soft/hard calcualtion
-        struct BlackjackHandInfo info;
-        info.value = 0;
-        info.soft = false;
-        info.pair = false;
-        if(sorted_hand.size() == 2){
-            if(card_scores[sorted_hand[0].value] == card_scores[sorted_hand[1].value]){
-                //std::cout << "DEBUG: that's a pair" << std::endl;
-                info.pair = true;
+    public:
+        void deal(BlackjackCard &card1, BlackjackCard &card2, unsigned int initial_bet)
+        {
+            bet = initial_bet;
+            cards.push_back(card1);
+            cards.push_back(card2);
+            can_double = true;
+            if (this->info().pair) {
                 can_split = true;
             }
-        }
 
-        for(BlackjackCard card : sorted_hand){
-            switch(card.value){
-                case ACE:
-                    if(info.value + 11 > 21){
-                        info.value+= 1;
-                    } else {
-                        info.value+= 11;
-                        info.soft = true;
-                    }
-                    break;
-                default: 
-                    info.value += card_scores[card.value];
+            if (this->info().value == 21) {
+                blackjack = true;
+            }
+        }	
+
+        void hit(BlackjackCard &card)
+        {
+            can_split = false;
+            blackjack = false;
+            cards.push_back(card);
+            if (this->info().value > 21) {
+                is_busted = true;
             }
         }
-        return info;
-    }
+
+        void double_down(BlackjackCard &card)
+        {
+            cards.push_back(card);
+            bet *= 2;
+        }
+
+        void clear()
+        {
+            cards.clear();
+            bet = 0;
+            can_split = false;
+            can_double = false;
+            is_soft = false;
+            is_busted = false;
+            blackjack = false;
+        }
+
+        struct BlackjackHandInfo info()
+        {
+            std::vector<BlackjackCard> sorted_hand = cards;
+            std::sort(sorted_hand.begin(), sorted_hand.end()); //need to get aces at the end for correct soft/hard calcualtion
+            struct BlackjackHandInfo info;
+            info.value = 0;
+            info.soft = false;
+            info.pair = false;
+            if(sorted_hand.size() == 2){
+                if(card_scores[sorted_hand[0].value] == card_scores[sorted_hand[1].value]){
+                    //std::cout << "DEBUG: that's a pair" << std::endl;
+                    info.pair = true;
+                    can_split = true;
+                } 
+            }
+
+            for(BlackjackCard card : sorted_hand){
+                switch(card.value){
+                    case ACE:
+                        if(info.value + 11 > 21){
+                            info.value+= 1;
+                        } else {
+                            info.value+= 11;
+                            info.soft = true;
+                        }
+                        break;
+                    default: 
+                        info.value += card_scores[card.value];
+                }
+            }
+            return info;
+        }
 };
 
 std::ostream& operator<<(std::ostream& str, BlackjackHand& v) {
     struct BlackjackHandInfo info = v.info();
+    str << "[" << v.cards.size() << "] ";
     if(info.soft){
         for(BlackjackCard card : v.cards){
             str << card_strings[card.value] << card_suits[card.suit] << " ";
@@ -285,130 +305,139 @@ std::ostream& operator<<(std::ostream& str, BlackjackHand& v) {
 
 class BlackjackPlayer
 {
-public:
-	int bankroll;
-	unsigned int initial_bet;
-	std::vector<BlackjackHand> hands;
+    public:
+        int bankroll;
+        unsigned int initial_bet;
+        std::vector<BlackjackHand> hands;
 
-	BlackjackPlayer()
-	{
-		bankroll = 1000;
-		initial_bet = 10;
-		hands.clear();
-	}
-
-	void payout(BlackjackHand &h) 
-	{
-		bankroll += 2*h.bet;
-		h.clear();
-	}
-
-    void push(BlackjackHand &h)
-    {
-        bankroll += h.bet;
-        h.clear();
-    }
-
-	virtual enum BlackjackPlayerActions get_player_action(BlackjackHand &hand)
-    {
-        enum BlackjackPlayerActions action = NO_ACTION;
-        std::cout << "Hand is: " << hand << std::endl << "Choose an Action ([H]it, ";
-        if (hand.can_double) {
-        	std::cout << "[D]ouble, ";
+        BlackjackPlayer()
+        {
+            bankroll = 1000;
+            initial_bet = 10;
+            hands.clear();
         }
-        if (hand.can_split) {
-        	std::cout << "S[p]lit, "; 
+
+        void payout(BlackjackHand &h) 
+        {
+            bankroll += 2*h.bet;
+            h.clear();
         }
-        std::cout << "[S]tand)" << std::endl; 
-        std::string player_action;
-        while(action == NO_ACTION){
-            std::cin >> player_action;
-            switch(player_action[0]){
-                case('H'):
-                case('h'):
-                    action = HIT;
-                    break;
-                case('S'):
-                case('s'):
-                    action = STAND;
-                    break;
-                case('P'):
-                case('p'):
-                	if (hand.can_split) {
-                		action = SPLIT;
-                	} else {
-                		std::cout << "Can't split now" << std::endl;
-                	}
-                	break;
-                case('D'):
-                case('d'):
-                	if (hand.can_double) {
-                		action = DOUBLE;
-                	} else {
-                		std::cout << "Can't double down now" << std::endl;
-                	}
-                    break;
-                default:
-                    std::cout << "Invalid Player Action" << std::endl;
+
+        void push(BlackjackHand &h)
+        {
+            bankroll += h.bet;
+            h.clear();
+        }
+
+        virtual enum BlackjackPlayerActions get_player_action(BlackjackHand &hand)
+        {
+            enum BlackjackPlayerActions action = NO_ACTION;
+            std::cout << "Hand is: " << hand << std::endl << "Choose an Action ([H]it, ";
+            if (hand.can_double) {
+                std::cout << "[D]ouble, ";
             }
+            if (hand.can_split) {
+                std::cout << "S[p]lit, "; 
+            }
+            std::cout << "[S]tand)" << std::endl; 
+            std::string player_action;
+            while(action == NO_ACTION){
+                std::cin >> player_action;
+                switch(player_action[0]){
+                    case('H'):
+                    case('h'):
+                        action = HIT;
+                        break;
+                    case('S'):
+                    case('s'):
+                        action = STAND;
+                        break;
+                    case('P'):
+                    case('p'):
+                        if (hand.can_split) {
+                            action = SPLIT;
+                        } else {
+                            std::cout << "Can't split now" << std::endl;
+                        }
+                        break;
+                    case('D'):
+                    case('d'):
+                        if (hand.can_double) {
+                            action = DOUBLE;
+                        } else {
+                            std::cout << "Can't double down now" << std::endl;
+                        }
+                        break;
+                    default:
+                        std::cout << "Invalid Player Action" << std::endl;
+                }
+            }
+            return action;
         }
-        return action;
-    }
 }; 
 
 class BlackjackDealer : public BlackjackPlayer 
 {
-private:
-    const struct BlackjackRules * ruleset;
-public:
-    BlackjackDealer(){
-        ruleset = &default_ruleset;
-    }
-    enum BlackjackPlayerActions get_player_action()
-    {
-    	// dealer can only have one hand, so just use hands[0]
-        enum BlackjackPlayerActions action = HIT;
-        struct BlackjackHandInfo info = hands[0].info();
-        if(info.value > 17){
-            action = STAND;
-        } else if(info.value == 17) {
-            if(info.soft && ruleset->dealer_hit_soft_17){
-                action = HIT;
-            } else {
+    private:
+        const struct BlackjackRules * ruleset;
+    public:
+        BlackjackDealer(){
+            ruleset = &default_ruleset;
+        }
+        enum BlackjackPlayerActions get_player_action()
+        {
+            // dealer can only have one hand, so just use hands[0]
+            enum BlackjackPlayerActions action = HIT;
+            struct BlackjackHandInfo info = hands[0].info();
+            if(info.value > 17){
                 action = STAND;
-            }
-        } 
-        return action;
-    }
-    BlackjackCard showing()
-    {
-        return hands[0].cards[0];
-    }
+            } else if(info.value == 17) {
+                if(info.soft && ruleset->dealer_hit_soft_17){
+                    action = HIT;
+                } else {
+                    action = STAND;
+                }
+            } 
+            return action;
+        }
+        BlackjackCard showing()
+        {
+            return hands[0].cards[0];
+        }
 };
 
 class BlackjackGame
 {
-	std::vector<BlackjackPlayer> players;
-	BlackjackDealer dealer;
-	BlackjackDeck deck;
-	struct BlackjackRules *ruleset;
+    std::vector<BlackjackPlayer> players;
+    BlackjackDealer dealer;
+    BlackjackDeck deck;
+    const struct BlackjackRules *ruleset;
 
-public:
-	BlackjackGame()
-	{
-		players.push_back(BlackjackPlayer());
-	}
-	BlackjackGame(int num_players) 
-	{
-		for(int i=0; i<num_players; ++i) {
-			players.push_back(BlackjackPlayer());
-		}
-	}
+    public:
+    BlackjackGame()
+    {
+        ruleset = &default_ruleset;
+        players.push_back(BlackjackPlayer());
+    }
 
-	void deal_hand()
-	{
-		for (int i=0; i < players.size(); ++i) {
-			players[i].hands.clear();
+    BlackjackGame(int num_players) 
+    {
+        ruleset = &default_ruleset;
+        for(int i=0; i<num_players; ++i) {
+            players.push_back(BlackjackPlayer());
+        }
+    }
+
+    void deal_hand()
+    {
+        if (ruleset->continuous_shuffle) {
+            deck.shuffle();
+        } else if (deck.cards_remaining() <= ruleset->shuffle_threshold) {
+            deck.shuffle();
+        }
+
+        for (int i=0; i < players.size(); ++i) {
+            players[i].hands.clear();
 
             if (players[i].bankroll - players[i].initial_bet > 0) {
                 players[i].hands.push_back(BlackjackHand());
@@ -417,46 +446,50 @@ public:
             } else {
                 std::cout << "Player " << i+1 << " is bankrupt" << std::endl;
             }
-		}
+        }
 
-		dealer.hands.clear();
-		dealer.hands.push_back(BlackjackHand());
-		dealer.hands[0].deal(deck.deal(), deck.deal(), 0);
+        dealer.hands.clear();
+        dealer.hands.push_back(BlackjackHand());
+        dealer.hands[0].deal(deck.deal(), deck.deal(), 0);
 
-		std::cout << "Dealer showing " << card_strings[dealer.showing().value] << card_suits[dealer.showing().suit] << std::endl << std::endl;
+        std::cout << "Dealer showing " << card_strings[dealer.showing().value] << card_suits[dealer.showing().suit] << std::endl << std::endl;
 
-		for (int i=0; i < players.size(); ++i) {
-			BlackjackPlayer *p = &players[i];
+        for (int i=0; i < players.size(); ++i) {
+            BlackjackPlayer *p = &players[i];
             // we print bankroll + initial bet because the player hasn't actually lost their initial bet yet
             // but internally the initial bet currently belongs to the dealt hand 
-			std::cout << "Player " << i+1  << ": $" << p->bankroll + p->initial_bet << std::endl;
-			bool player_done = false;
-			// easier to use while here than for loop because # of hands may change
-			int j=0;
-			while(!player_done) {
-				if (p->hands.size() > 1) {
-					std::cout << "Hand #" << j+1 << std::endl;
-				}
-				BlackjackHand hand = p->hands[j];
+            std::cout << "Player " << i+1  << ": $" << p->bankroll + p->initial_bet << std::endl;
+            bool player_done = false;
+            // easier to use while here than for loop because # of hands may change
+            int j=0;
+            while(!player_done) {
+                if (p->hands.size() > 1) {
+                    std::cout << "Hand #" << j+1 << std::endl;
+                }
+                BlackjackHand &hand = p->hands[j];
                 enum BlackjackPlayerActions action = NO_ACTION;
-				while (action != STAND && action != DOUBLE && action != SPLIT && !hand.is_busted) {
-					action = p->get_player_action(hand);
-					switch (action) {
-						case HIT:
-							hand.hit(deck.deal());
-							std::cout << "Player Hits: " << hand << std::endl;
+                if (hand.blackjack) {
+                    std::cout << "Blackjack!!!" << std::endl;
+                    action = STAND;
+                }
+                while (action != STAND && action != DOUBLE && action != SPLIT && !hand.is_busted) {
+                    action = p->get_player_action(hand);
+                    switch (action) {
+                        case HIT:
+                            hand.hit(deck.deal());
+                            std::cout << "Player Hits: " << hand << std::endl;
                             if (hand.is_busted) {
                                 std::cout << "Busted" << std::endl;
                             }
-							break;
-						case STAND:
-							break;
-						case DOUBLE:
-							p->bankroll -= p->initial_bet;
-							hand.double_down(deck.deal());
-							std::cout << "Player Doubles Down: " << hand << std::endl;
-							break;
-						case SPLIT:
+                            break;
+                        case STAND:
+                            break;
+                        case DOUBLE:
+                            p->bankroll -= p->initial_bet;
+                            hand.double_down(deck.deal());
+                            std::cout << "Player Doubles Down: " << hand << std::endl;
+                            break;
+                        case SPLIT:
                             {
                                 p->bankroll -= p->initial_bet;
                                 BlackjackHand new1 = BlackjackHand();
@@ -468,21 +501,21 @@ public:
                                 j = j-1; // need to reprocess this hand 
                             }
 
-							std::cout << "Player Splits and now has " << p->hands.size() << " hands" << std::endl;
-							break;
-						default: 
-							std::cout << "Unreachable state: The programmer is a moron" << std::endl;
-					}
-				}
+                            std::cout << "Player Splits and now has " << p->hands.size() << " hands" << std::endl;
+                            break;
+                        default: 
+                            std::cout << "Unreachable state: The programmer is a moron" << std::endl;
+                    }
+                }
 
-				if (j+1 < p->hands.size()) {
-					++j;
-				} else {
-					player_done = true;
-				}
-			}
-		}
-        
+                if (j+1 < p->hands.size()) {
+                    ++j;
+                } else {
+                    player_done = true;
+                }
+            }
+        }
+
         std::cout << "Dealer's hand: " << dealer.hands[0] << std::endl;
         dramatic_delay();
 
@@ -510,6 +543,7 @@ public:
                     std::cout << std::endl << "Hand " << j+1 << " ";
                 }
 
+                //std::cout << "(" << players[i].hands[j].info().value << ") ";
                 std::cout << "(" << players[i].hands[j].info().value << ") ";
                 if(players[i].hands[j].is_busted){
                     std::cout << "Loses\n" << std::endl;
@@ -529,7 +563,7 @@ public:
             }
         }
 
-	}
+    }
 };
 
 int main()
