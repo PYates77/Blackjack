@@ -7,9 +7,13 @@
 #include <thread>
 
 /* TODO:
- *  Overall you should probably redo this whole thing with better design practices, it's a huge mess
  *  Insurance
- *  Blackjack payout
+ *  Double after split
+ *  Min double value
+ *  Max split hands
+ *  Resplit aces
+ *  Hit split aces
+ *  Surrender
  */
 
 static bool dramatic_delay_enabled = true;
