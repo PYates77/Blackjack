@@ -37,14 +37,6 @@ static const struct BlackjackRules default_ruleset = {
     .shuffle_threshold = 10,
 };
 
-
-struct BlackjackHandInfo
-{
-    unsigned int value;
-    bool pair;
-    bool soft;
-};
-
 /* for calculating statistics */
 struct BlackjackDeckComposition
 {
@@ -74,6 +66,8 @@ void dramatic_delay()
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 }
+
+BlackjackCard::BlackjackCard() = default;
 
 BlackjackCard::BlackjackCard(enum BlackjackSuit s, enum BlackjackCardValue v) {
     suit = s;
@@ -261,7 +255,8 @@ enum BlackjackPlayerActions BlackjackPlayer::get_player_action(BlackjackHand &ha
     if (hand.can_split) {
         std::cout << "S[p]lit, ";
     }
-    std::cout << "[S]tand)" << std::endl;
+    std::cout << "[S]tand, ";
+    std::cout << "S[u]rrender)" << std::endl;
     std::string player_action;
     while(action == NO_ACTION){
         std::cin >> player_action;
@@ -289,6 +284,12 @@ enum BlackjackPlayerActions BlackjackPlayer::get_player_action(BlackjackHand &ha
                 } else {
                     std::cout << "Can't double down now" << std::endl;
                 }
+                break;
+            case('U'):
+            case('u'):
+                /* TODO: surrender only possible if 2 cards are dealt, need a check here! */
+                /* TODO: support for surrendering (get back half of initial bet) */
+                action = SURRENDER;
                 break;
             default:
                 std::cout << "Invalid Player Action" << std::endl;

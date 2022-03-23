@@ -85,6 +85,15 @@ enum BlackjackPlayerActions
     SURRENDER
 };
 
+static std::string player_action_strings[] = {
+    "NO ACTION",
+    "STAND",
+    "HIT",
+    "DOUBLE",
+    "SPLIT",
+    "SURRENDER",
+};
+
 struct BlackjackRules
 {
     int num_decks;
@@ -108,9 +117,17 @@ class BlackjackCard
         enum BlackjackSuit suit;
         enum BlackjackCardValue value;
 
+        BlackjackCard();
         BlackjackCard(enum BlackjackSuit s, enum BlackjackCardValue v);
         bool operator<(const BlackjackCard& r);
         bool operator==(enum BlackjackCardValue v);
+};
+
+struct BlackjackHandInfo
+{
+    unsigned int value;
+    bool pair;
+    bool soft;
 };
 
 class BlackjackHand
@@ -187,5 +204,5 @@ class BlackjackGame
         BlackjackGame(int num_players);
         void play_round();
 };
-            
+
 #endif /* BLACKJACK_H */
