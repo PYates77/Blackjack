@@ -141,13 +141,18 @@ class BlackjackHand
         bool is_soft;
         bool is_busted;
         std::vector<BlackjackCard> cards;
+        struct BlackjackHandInfo info;
 
         void deal(BlackjackCard &card1, BlackjackCard &card2, unsigned int initial_bet);
         void hit(BlackjackCard &card);
         void double_down(BlackjackCard &card);
         void clear();
-        struct BlackjackHandInfo info();
         friend std::ostream& operator<<(std::ostream& str, BlackjackHand &h);
+
+    private:
+        void add_card(BlackjackCard &card);
+        void update_info();
+
 };
 
 class BlackjackDeck
@@ -199,6 +204,7 @@ class BlackjackGame
         void process_player_move(BlackjackPlayer &p);
         void process_dealer_move();
         void payout_player(BlackjackPlayer &p);
+        bool all_hands_busted(void);
 
     public:
         BlackjackGame();

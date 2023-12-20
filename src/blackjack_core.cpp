@@ -10,6 +10,7 @@
  *  Hit split aces
  *  Surrender
  *  Change bet
+ *  Dealer doesn't play if all players are busted
  */
 
 static bool dramatic_delay_enabled = true;
@@ -99,13 +100,13 @@ void BlackjackDeck::shuffle()
     std::random_shuffle(deck.begin(), deck.end());
 }
 
-BlackjackDeck::BlackjackDeck() 
+BlackjackDeck::BlackjackDeck()
 {
     num_decks = 1;
     shuffle();
 }
 
-BlackjackDeck::BlackjackDeck(int num_decks) 
+BlackjackDeck::BlackjackDeck(int num_decks)
 {
     this->num_decks = num_decks;
     shuffle();
@@ -124,17 +125,24 @@ int BlackjackDeck::cards_remaining()
     return deck.size();
 }
 
+// Adds a card to the hand and recalculates info
+void BlackjackHand::add_card(BlackjackCard &card)
+{
+    cards.push_back(card);
+    update_info();
+}
+
 void BlackjackHand::deal(BlackjackCard &card1, BlackjackCard &card2, unsigned int initial_bet)
 {
     bet = initial_bet;
-    cards.push_back(card1);
-    cards.push_back(card2);
+    add_card(card1);
+    add_card(card2);
     can_double = true;
-    if (this->info().pair) {
+    if (this->info.pair) {
         can_split = true;
     }
 
-    if (this->info().value == 21) {
+    if (this->info.value == 21) {
         blackjack = true;
     }
 }
@@ -143,17 +151,17 @@ void BlackjackHand::hit(BlackjackCard &card)
 {
     can_split = false;
     blackjack = false;
-    cards.push_back(card);
-    if (this->info().value > 21) {
+    add_card(card);
+    if (this->info.value > 21) {
         is_busted = true;
     }
 }
 
 void BlackjackHand::double_down(BlackjackCard &card)
 {
-    cards.push_back(card);
+    add_card(card);
     bet *= 2;
-    if (this->info().value > 21) {
+    if (this->info.value > 21) {
         is_busted = true;
     }
 }
@@ -169,11 +177,10 @@ void BlackjackHand::clear()
     blackjack = false;
 }
 
-struct BlackjackHandInfo BlackjackHand::info()
+void BlackjackHand::update_info()
 {
     std::vector<BlackjackCard> sorted_hand = cards;
     std::sort(sorted_hand.begin(), sorted_hand.end()); //need to get aces at the end for correct soft/hard calcualtion
-    struct BlackjackHandInfo info;
     info.value = 0;
     info.soft = false;
     info.pair = false;
@@ -199,7 +206,6 @@ struct BlackjackHandInfo BlackjackHand::info()
                 info.value += card_scores[card.value];
         }
     }
-    return info;
 }
 
 std::ostream& operator<<(std::ostream& str, BlackjackCard &card) {
@@ -208,7 +214,7 @@ std::ostream& operator<<(std::ostream& str, BlackjackCard &card) {
 }
 
 std::ostream& operator<<(std::ostream& str, BlackjackHand &h) {
-    struct BlackjackHandInfo info = h.info();
+    struct BlackjackHandInfo info = h.info;
     // Debug: print number of cards in hand
     //str << "[" << h.cards.size() << "] ";
 
@@ -315,7 +321,7 @@ enum BlackjackPlayerActions BlackjackDealer::get_player_action()
 {
     // dealer can only have one hand, so just use hands[0]
     enum BlackjackPlayerActions action = HIT;
-    struct BlackjackHandInfo info = hands[0].info();
+    struct BlackjackHandInfo info = hands[0].info;
     if(info.value > 17){
         action = STAND;
     } else if(info.value == 17) {
@@ -484,20 +490,20 @@ void BlackjackGame::payout_player(BlackjackPlayer &p)
             std::cout << std::endl << "Hand " << j+1 << " ";
         }
 
-        //std::cout << "(" << p.hands[j].info().value << ") ";
-        std::cout << "(" << p.hands[j].info().value << ") ";
+        //std::cout << "(" << p.hands[j].info.value << ") ";
+        std::cout << "(" << p.hands[j].info.value << ") ";
         if(p.hands[j].is_busted){
             std::cout << "Loses\n" << std::endl;
         } else if (dealer.hands[0].is_busted){
             std::cout << "Wins!\n" << std::endl;
             p.payout(p.hands[j]);
-        } else if(p.hands[j].blackjack && p.hands[j].info().value > dealer.hands[0].info().value){
+        } else if(p.hands[j].blackjack && p.hands[j].info.value > dealer.hands[0].info.value){
             std::cout << "Wins with Blackjack!\n" << std::endl;
             p.payout_blackjack(p.hands[j]);
-        } else if(p.hands[j].info().value > dealer.hands[0].info().value){
+        } else if(p.hands[j].info.value > dealer.hands[0].info.value){
             std::cout << "Wins!\n" << std::endl;
             p.payout(p.hands[j]);
-        } else if (p.hands[0].info().value == dealer.hands[0].info().value){
+        } else if (p.hands[0].info.value == dealer.hands[0].info.value){
             std::cout << "Pushes\n" << std::endl;
             p.push(p.hands[j]);
         } else {
@@ -505,6 +511,24 @@ void BlackjackGame::payout_player(BlackjackPlayer &p)
         }
         dramatic_delay();
     }
+}
+
+bool BlackjackGame::all_hands_busted(void) {
+    bool all_players_busted = true;
+    for (int i=0; i < players.size(); ++i) {
+        for (int j=0; j<players[i].hands.size(); ++j) {
+            // If we find a single hand that is not busted
+            // Dealer must play on
+            if (!players[i].hands[j].is_busted) {
+                all_players_busted = false;
+                break;
+            }
+        }
+        if (!all_players_busted) {
+            break;
+        }
+    }
+    return all_players_busted;
 }
 
 void BlackjackGame::play_round()
@@ -538,7 +562,10 @@ void BlackjackGame::play_round()
         }
     }
 
-    process_dealer_move();
+    // Dealer doesn't have to play if there are no remaining players
+    if (!all_hands_busted()) {
+        process_dealer_move();
+    }
 
     for (int i=0; i < players.size(); ++i) {
         std::cout << "Player " << i+1 << " ";

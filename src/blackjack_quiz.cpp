@@ -3,9 +3,9 @@
 #include "blackjack.h"
 #include <map>
 
-/* 
+/*
  * TODO: The whole reason I'm writing this is so that the quiz remembers which ones you got wrong and preferentially quizzes you on those
- * implement this 
+ * implement this
  */
 
 /* < player split possibility, dealer upcard, basic strategy player action > */
@@ -87,7 +87,7 @@ int cur_scenario_i;
 int cur_scenario_j;
 int cur_scenario_k;
 
-void setup_weights() 
+void setup_weights()
 {
     for (int i=0; i<_NUM_BLACKJACK_CARDS_; i++) {
         for (int j=0; j<_NUM_BLACKJACK_CARDS_; j++) {
@@ -98,25 +98,25 @@ void setup_weights()
     }
 }
 
-/* 
- * Choose the card combination for the player randomly, 
+/*
+ * Choose the card combination for the player randomly,
  * but more heavily weight scenarios where the player has made mistakes
  */
-void choose_cards(BlackjackCard &c1, BlackjackCard &c2, BlackjackCard &c3) 
+void choose_cards(BlackjackCard &c1, BlackjackCard &c2, BlackjackCard &c3)
 {
     /* COMPLETELY RANDOM METHOD */
     /*
     c1 = BlackjackCard(
-            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_), 
+            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_),
             static_cast<enum BlackjackCardValue>(rand() % _NUM_BLACKJACK_CARDS_));
     c2 = BlackjackCard(
-            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_), 
+            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_),
             static_cast<enum BlackjackCardValue>(rand() % _NUM_BLACKJACK_CARDS_));
     c3 = BlackjackCard(
-            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_), 
+            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_),
             static_cast<enum BlackjackCardValue>(rand() % _NUM_BLACKJACK_CARDS_));
     */
-    
+   
     int weight_sum = 0;
     for (int i=0; i<_NUM_BLACKJACK_CARDS_; i++) {
         for (int j=0; j<_NUM_BLACKJACK_CARDS_; j++) {
@@ -138,13 +138,13 @@ void choose_cards(BlackjackCard &c1, BlackjackCard &c2, BlackjackCard &c3)
                     cur_scenario_j = j;
                     cur_scenario_k = k;
                     c1 = BlackjackCard(
-                            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_), 
+                            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_),
                             static_cast<enum BlackjackCardValue>(i));
                     c2 = BlackjackCard(
-                            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_), 
+                            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_),
                             static_cast<enum BlackjackCardValue>(j));
                     c3 = BlackjackCard(
-                            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_), 
+                            static_cast<enum BlackjackSuit>(rand() % _NUM_BLACKJACK_SUITS_),
                             static_cast<enum BlackjackCardValue>(k));
 
                     return;
@@ -163,9 +163,9 @@ BlackjackPlayer player;
 BlackjackHand hand;
 BlackjackCard card1, card2, card3;
 
-int main() 
+int main()
 {
-    srand(time(0)); 
+    srand(time(0));
     setup_weights();
 
 	while (1) {
@@ -178,35 +178,33 @@ int main()
         enum BlackjackPlayerActions action = player.get_player_action(hand);
         enum BlackjackPlayerActions expected_action;
 
-        /* TODO this info() function is total bs */
-        hand.info();
         bool correct = false;
         /* TODO: this card_scores[] thing is total bs */
         if (hand.can_split) {
             /* since AA split isn't in the table, check for it here */
-            if (hand.info().soft && hand.info().value == 12) {
+            if (hand.info.soft && hand.info.value == 12) {
                 expected_action = SPLIT;
             } else {
-                expected_action = strategy_split[hand.info().value][card_scores[card3.value]];
+                expected_action = strategy_split[hand.info.value][card_scores[card3.value]];
             }
-        } else if (hand.info().soft) {
-            expected_action = strategy_soft[hand.info().value][card_scores[card3.value]];
+        } else if (hand.info.soft) {
+            expected_action = strategy_soft[hand.info.value][card_scores[card3.value]];
         } else {
-            expected_action = strategy_hard[hand.info().value][card_scores[card3.value]];
+            expected_action = strategy_hard[hand.info.value][card_scores[card3.value]];
         }
 
-        //std::cout << "Hand value = " << hand.info().value << std::endl;
+        //std::cout << "Hand value = " << hand.info.value << std::endl;
         //std::cout << "Dealer upcard value = " <<  card_scores[card3.value] << std::endl;
 
         int *weight = &scenario_weights[cur_scenario_i][cur_scenario_j][cur_scenario_k];
         //std::cout << "Debug: cur scenario weight = " << *weight << std::endl;
 
         if (action == expected_action) {
-            std::cout << "CORRECT!\n" << std::endl;
+            std::cout << "\033[32mCORRECT!\033[0m\n" << std::endl;
             *weight = ((100 * (*weight)) - ((*weight) * WEIGHT_CHANGE_PCT))/100;
 
         } else {
-            std::cout << "INCORRECT! Expected action was " << player_action_strings[expected_action] 
+            std::cout << "\033[31mINCORRECT!\033[0m Expected action was " << player_action_strings[expected_action]
                 << " you chose " << player_action_strings[action] << std::endl << std::endl;
             *weight = ((100 * (*weight)) + ((*weight) * WEIGHT_CHANGE_PCT))/100;
         }

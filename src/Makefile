@@ -1,9 +1,12 @@
+all: blackjack_quiz blackjack_cli
 
 blackjack_cli: blackjack_core.cpp blackjack_cli.cpp
-	g++ $^ -o blackjack_cli
+	$(CXX) $^ -o $@
 
 blackjack_quiz: blackjack_core.cpp blackjack_quiz.cpp
-	g++ $^ -o blackjack_quiz
+	$(CXX) $^ -o $@
 
-all:
-	blackjack_quiz blackjack_cli
+clean:
+	@rm -f blackjack_quiz blackjack_cli
+
+
