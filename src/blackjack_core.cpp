@@ -9,6 +9,7 @@
  *  Resplit aces
  *  Hit split aces
  *  Surrender
+ *  Change bet
  */
 
 static bool dramatic_delay_enabled = true;
@@ -201,20 +202,28 @@ struct BlackjackHandInfo BlackjackHand::info()
     return info;
 }
 
+std::ostream& operator<<(std::ostream& str, BlackjackCard &card) {
+    str << card_strings[card.value] << card_suits[card.suit];
+    return str;
+}
+
 std::ostream& operator<<(std::ostream& str, BlackjackHand &h) {
     struct BlackjackHandInfo info = h.info();
-    str << "[" << h.cards.size() << "] ";
-    if(info.soft){
-        for(BlackjackCard card : h.cards){
-            str << card_strings[card.value] << card_suits[card.suit] << " ";
-        }
-        str << " (soft " << info.value << ")";
-    } else {
-        for(BlackjackCard card : h.cards){
-            str << card_strings[card.value] << card_suits[card.suit] << " ";
-        }
-        str << " (" << info.value << ")";
+    // Debug: print number of cards in hand
+    //str << "[" << h.cards.size() << "] ";
+
+    // Print card string
+    for(BlackjackCard card : h.cards) {
+        str << card << " ";
     }
+
+    // Print helpful value text
+    str << "(";
+    if (info.soft) {
+        str << "soft ";
+    }
+    str << info.value << ")";
+
     return str;
 }
 

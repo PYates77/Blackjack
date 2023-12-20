@@ -121,6 +121,7 @@ class BlackjackCard
         BlackjackCard(enum BlackjackSuit s, enum BlackjackCardValue v);
         bool operator<(const BlackjackCard& r);
         bool operator==(enum BlackjackCardValue v);
+        friend std::ostream& operator<<(std::ostream& str, BlackjackCard &h);
 };
 
 struct BlackjackHandInfo

@@ -173,8 +173,7 @@ int main()
 
         hand.deal(card1, card2, 1);
 
-        /* TODO: write a ostream operator for cards */
-        std::cout << "Dealer showing " << card_strings[card3.value] << std::endl;
+        std::cout << "Dealer showing " << card3 << std::endl;
 
         enum BlackjackPlayerActions action = player.get_player_action(hand);
         enum BlackjackPlayerActions expected_action;
